@@ -1,0 +1,76 @@
+services:
+  redis-stack:
+    image: redis/redis-stack:latest
+    container_name: redis-container
+    restart: always
+    ports:
+      - 6379:6379
+      - 8001:8001
+    volumes:
+      - redis-vol:/data
+    networks:
+      - my_network
+
+  ib-gateway:
+    restart: always
+    container_name: ib-container
+    hostname: ib-gateway
+    build:
+      context: .
+      dockerfile: build/ibgw.Dockerfile
+    environment:
+      TWS_USERID: ${TWS_USERID:-}
+      TWS_PASSWORD: ${TWS_PASSWORD:-}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      READ_ONLY_API: ${READ_ONLY_API:-no}
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
+    ports:
+      - "127.0.0.1:4001:4001"
+      - "127.0.0.1:4002:4002"
+      - "127.0.0.1:5900:5900"
+    depends_on:
+      - redis-stack
+    networks:
+      - my_network
+
+  tv-webhook:
+    restart: always
+    container_name: tvwebhook-container
+    hostname: tv-webhook
+    build:
+      context: .
+      dockerfile: ./dockerfile
+    volumes:
+      - type: bind
+        source: ./src
+        target: /app/src 
+      - type: bind
+        source: ./templates
+        target: /app/templates
+    ports:
+      - 8000:80
+    depends_on:
+      - ib-gateway
+      - redis-stack
+    networks:
+      - my_network
+
+  nginx-server:
+    image: nginx
+    container_name: nginx-container
+    volumes:
+      - ./build/config/nginx/default.conf:/etc/nginx/conf.d/default.conf  # Path to your Nginx configuration
+    ports:
+      - 80:80  # Map host port 80 to container port 80
+    depends_on:
+      - tv-webhook
+    networks:
+      - my_network
+
+volumes:
+  redis-vol:
+    external: true
+
+networks:
+  my_network:
+    driver: bridge

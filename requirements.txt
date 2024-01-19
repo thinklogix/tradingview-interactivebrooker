@@ -3,4 +3,4 @@ websockets
 jinja2
 redis
 ib_insync
-
+uvicorn
